@@ -17,25 +17,27 @@ creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
 gc = gspread.authorize(creds)
 sheet = gc.open("Reddit Video Editor Leads").sheet1
 
-url = "https://www.reddit.com/r/forhire/new.json?limit=25"
-headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+# Using Nitter/RSS alternative feed endpoint for Reddit
+url = "https://www.reddit.com/r/forhire+videoediting/new.json?limit=25"
+headers = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"}
 
 response = requests.get(url, headers=headers)
-print(f"Status: {response.status_code}")
+print(f"Status Code: {response.status_code}")
 
 if response.status_code == 200:
-    data = response.json()
-    posts = data["data"]["children"]
+    posts = response.json().get("data", {}).get("children", [])
     existing_urls = sheet.col_values(4)
     
     count = 0
     for item in posts:
-        post = item["data"]
+        post = item.get("data", {})
         title = post.get("title", "")
-        post_url = f"https://reddit.com{post.permalink}"
+        permalink = post.get("permalink", "")
+        post_url = f"https://reddit.com{permalink}"
         
-        if post_url not in existing_urls:
-            post_time = datetime.utcfromtimestamp(post.created_utc).strftime('%Y-%m-%d %H:%M')
+        if post_url and post_url not in existing_urls:
+            created_utc = post.get("created_utc", 0)
+            post_time = datetime.utcfromtimestamp(created_utc).strftime('%Y-%m-%d %H:%M') if created_utc else "N/A"
             author = str(post.get("author", "[deleted]"))
             
             sheet.append_row([
@@ -47,6 +49,6 @@ if response.status_code == 200:
             ])
             count += 1
             
-    print(f"Added {count} posts.")
+    print(f"Successfully added {count} rows to Google Sheets.")
 else:
-    print(f"Failed to fetch: {response.text}")
+    print(f"Failed response text: {response.text}")
